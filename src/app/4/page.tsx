@@ -36,7 +36,7 @@ export default function JobLogJournalPage() {
     deleteJobApplication,
     updateJournal,
     getWeeklyAppCount,
-    setFlashcardMastery,
+    toggleFlashcard,
   } = useStore();
 
   const today = getCurrentDay();
@@ -347,14 +347,14 @@ export default function JobLogJournalPage() {
               Spaced repetition for your interview talking points. Read the question out loud, formulate your answer, and check against the reference.
             </p>
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-[var(--color-text-tertiary)]"><CheckCircle2 size={12} className="inline mr-1 text-[var(--color-green)]"/>Mastered: {Object.values(state.flashcards).filter(v => v).length}/{FLASHCARDS.length}</span>
+              <span className="text-[11px] text-[var(--color-text-tertiary)]"><CheckCircle2 size={12} className="inline mr-1 text-[var(--color-green)]"/>Mastered: {Object.values(state.flashcardMastery).filter(v => v).length}/{FLASHCARDS.length}</span>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {FLASHCARDS.map(fc => {
-              const mastered = state.flashcards[fc.id] || false;
+              const mastered = state.flashcardMastery[fc.id] || false;
               return (
-                <Flashcard key={fc.id} flashcard={fc} mastered={mastered} onToggleMastery={() => setFlashcardMastery(fc.id, !mastered)} />
+                <Flashcard key={fc.id} flashcard={fc} mastered={mastered} onToggleMastery={() => toggleFlashcard(fc.id)} />
               );
             })}
           </div>
