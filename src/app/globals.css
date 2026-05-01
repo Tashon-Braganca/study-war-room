@@ -1,26 +1,126 @@
 @import "tailwindcss";
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&display=swap');
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-surface-0: #0e0d0c;
+  --color-surface-1: #141312;
+  --color-surface-2: #1c1b19;
+  --color-surface-3: #242320;
+  --color-surface-4: #2e2d2a;
+  --color-border: #2e2d2a;
+  --color-border-subtle: #222120;
+  --color-text-primary: #e8e5e0;
+  --color-text-secondary: #9a9590;
+  --color-text-tertiary: #6b6660;
+  --color-accent: #4f98a3;
+  --color-accent-dim: #3a7580;
+  --color-accent-surface: rgba(79, 152, 163, 0.08);
+  --color-amber: #c4883a;
+  --color-amber-dim: #a06e2a;
+  --color-amber-surface: rgba(196, 136, 58, 0.08);
+  --color-green: #5a9a6a;
+  --color-green-surface: rgba(90, 154, 106, 0.08);
+  --color-red: #b85450;
+  --color-red-surface: rgba(184, 84, 80, 0.08);
+  --color-blue: #5a82b8;
+  --color-blue-surface: rgba(90, 130, 184, 0.08);
+  --font-sans: 'Satoshi', system-ui, -apple-system, sans-serif;
+  --font-display: 'Cabinet Grotesk', 'Satoshi', system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background-color: var(--color-surface-0);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-surface-0);
+}
+
+::selection {
+  background: rgba(79, 152, 163, 0.3);
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, textarea, select {
+  transition: all 180ms ease-out;
+}
+
+/* Focus styles */
+input:focus, textarea:focus, select:focus {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+/* Custom checkbox */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  cursor: pointer;
+  transition: all 180ms ease-out;
+  flex-shrink: 0;
+  position: relative;
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--color-text-tertiary);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--color-surface-0);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
