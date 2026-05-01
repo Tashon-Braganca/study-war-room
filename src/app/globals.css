@@ -1,6 +1,6 @@
-@import "tailwindcss";
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
 @import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&display=swap');
+@import "tailwindcss";
 
 @theme {
   --color-surface-0: #0e0d0c;
@@ -25,6 +25,8 @@
   --color-red-surface: rgba(184, 84, 80, 0.08);
   --color-blue: #5a82b8;
   --color-blue-surface: rgba(90, 130, 184, 0.08);
+  --color-purple: #9a7abf;
+  --color-purple-surface: rgba(154, 122, 191, 0.08);
   --font-sans: 'Satoshi', system-ui, -apple-system, sans-serif;
   --font-display: 'Cabinet Grotesk', 'Satoshi', system-ui, sans-serif;
 }

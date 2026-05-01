@@ -11,27 +11,27 @@ export interface JobApplication {
   date: string;
   platform: string;
   status: 'Applied' | 'Callback' | 'Interview' | 'Rejected' | 'Offer';
+  notes: string;
 }
 
-export interface JournalEntry {
-  day: number;
-  date: string;
-  text: string;
+export interface DsaAttempts {
+  first: boolean;
+  second: boolean;
+  third: boolean;
 }
 
 export interface AppState {
-  // Daily task checks: { [dayNumber]: { [blockId]: boolean } }
   dailyChecks: Record<number, Record<string, boolean>>;
-  // DSA solved: { [problemId]: boolean }
-  dsaSolved: Record<number, boolean>;
-  // Job applications
+  // DSA: { [problemId]: { first, second, third } }
+  dsaAttempts: Record<number, DsaAttempts>;
   jobApplications: JobApplication[];
-  // Journal entries: { [dayNumber]: text }
   journal: Record<number, string>;
-  // Streak
-  streakDays: number;
-  // Last check-in date
-  lastCheckIn: string | null;
+  // Playlist: { [videoId]: { watched: boolean, practiced: boolean } }
+  playlistProgress: Record<string, { watched: boolean; practiced: boolean }>;
+  // Flashcard mastery: { [flashcardId]: boolean }
+  flashcardMastery: Record<string, boolean>;
+  // Selected day for dashboard
+  selectedDay: number | null;
 }
 
 // ─── Helpers ───
@@ -57,23 +57,18 @@ export function getDateForDay(day: number): Date {
 }
 
 export function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-// ─── Default State ───
 function createDefaultState(): AppState {
   return {
     dailyChecks: {},
-    dsaSolved: {},
+    dsaAttempts: {},
     jobApplications: [],
     journal: {},
-    streakDays: 0,
-    lastCheckIn: null,
+    playlistProgress: {},
+    flashcardMastery: {},
+    selectedDay: null,
   };
 }
 
@@ -81,17 +76,23 @@ function createDefaultState(): AppState {
 interface StoreContextValue {
   state: AppState;
   toggleDailyBlock: (day: number, blockId: string) => void;
-  toggleDsaProblem: (problemId: number) => void;
+  setDsaAttempt: (problemId: number, attempt: 'first' | 'second' | 'third') => void;
+  getDsaAttemptState: (problemId: number) => DsaAttempts;
   addJobApplication: (app: Omit<JobApplication, 'id'>) => void;
   updateJobStatus: (id: string, status: JobApplication['status']) => void;
+  updateJobNotes: (id: string, notes: string) => void;
   deleteJobApplication: (id: string) => void;
   updateJournal: (day: number, text: string) => void;
+  togglePlaylistVideo: (videoId: string, field: 'watched' | 'practiced') => void;
+  toggleFlashcard: (id: string) => void;
+  setSelectedDay: (day: number | null) => void;
   getDayCompletion: (day: number) => { done: number; total: number; percent: number };
   getOverallProgress: () => number;
-  getDsaStats: () => { solved: number; total: number };
-  getWeekDsaStats: (week: 1 | 2 | 3 | 4) => { solved: number; total: number };
+  getDsaStats: () => { mastered: number; inProgress: number; notStarted: number; total: number };
+  getWeekDsaStats: (week: 1 | 2 | 3 | 4 | 5) => { mastered: number; inProgress: number; total: number };
   getStreakCount: () => number;
   getWeeklyAppCount: () => number;
+  getPlaylistStats: () => { watched: number; practiced: number; total: number };
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -109,37 +110,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState(prev => {
       const dayChecks = { ...(prev.dailyChecks[day] || {}) };
       dayChecks[blockId] = !dayChecks[blockId];
-      const newDailyChecks = { ...prev.dailyChecks, [day]: dayChecks };
+      return { ...prev, dailyChecks: { ...prev.dailyChecks, [day]: dayChecks } };
+    });
+  }, []);
 
-      // Recalculate streak
-      let streak = 0;
-      const today = getCurrentDay();
-      for (let d = today; d >= 1; d--) {
-        const checks = newDailyChecks[d] || {};
-        const taskBlocks = DAILY_BLOCKS.filter(b => b.category !== 'break' && b.category !== 'personal');
-        const doneCount = taskBlocks.filter(b => checks[b.id]).length;
-        if (doneCount > 0) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-
+  const setDsaAttempt = useCallback((problemId: number, attempt: 'first' | 'second' | 'third') => {
+    setState(prev => {
+      const current = prev.dsaAttempts[problemId] || { first: false, second: false, third: false };
       return {
         ...prev,
-        dailyChecks: newDailyChecks,
-        streakDays: streak,
-        lastCheckIn: new Date().toISOString(),
+        dsaAttempts: { ...prev.dsaAttempts, [problemId]: { ...current, [attempt]: !current[attempt] } },
       };
     });
   }, []);
 
-  const toggleDsaProblem = useCallback((problemId: number) => {
-    setState(prev => ({
-      ...prev,
-      dsaSolved: { ...prev.dsaSolved, [problemId]: !prev.dsaSolved[problemId] },
-    }));
-  }, []);
+  const getDsaAttemptState = useCallback((problemId: number): DsaAttempts => {
+    return state.dsaAttempts[problemId] || { first: false, second: false, third: false };
+  }, [state.dsaAttempts]);
 
   const addJobApplication = useCallback((app: Omit<JobApplication, 'id'>) => {
     setState(prev => ({
@@ -154,9 +141,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateJobStatus = useCallback((id: string, status: JobApplication['status']) => {
     setState(prev => ({
       ...prev,
-      jobApplications: prev.jobApplications.map(j =>
-        j.id === id ? { ...j, status } : j
-      ),
+      jobApplications: prev.jobApplications.map(j => j.id === id ? { ...j, status } : j),
+    }));
+  }, []);
+
+  const updateJobNotes = useCallback((id: string, notes: string) => {
+    setState(prev => ({
+      ...prev,
+      jobApplications: prev.jobApplications.map(j => j.id === id ? { ...j, notes } : j),
     }));
   }, []);
 
@@ -168,10 +160,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateJournal = useCallback((day: number, text: string) => {
+    setState(prev => ({ ...prev, journal: { ...prev.journal, [day]: text } }));
+  }, []);
+
+  const togglePlaylistVideo = useCallback((videoId: string, field: 'watched' | 'practiced') => {
+    setState(prev => {
+      const current = prev.playlistProgress[videoId] || { watched: false, practiced: false };
+      return {
+        ...prev,
+        playlistProgress: { ...prev.playlistProgress, [videoId]: { ...current, [field]: !current[field] } },
+      };
+    });
+  }, []);
+
+  const toggleFlashcard = useCallback((id: string) => {
     setState(prev => ({
       ...prev,
-      journal: { ...prev.journal, [day]: text },
+      flashcardMastery: { ...prev.flashcardMastery, [id]: !prev.flashcardMastery[id] },
     }));
+  }, []);
+
+  const setSelectedDay = useCallback((day: number | null) => {
+    setState(prev => ({ ...prev, selectedDay: day }));
   }, []);
 
   const getDayCompletion = useCallback((day: number) => {
@@ -184,8 +194,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const getOverallProgress = useCallback(() => {
     const today = getCurrentDay();
-    let totalDone = 0;
-    let totalPossible = 0;
+    let totalDone = 0, totalPossible = 0;
     const taskBlocks = DAILY_BLOCKS.filter(b => b.category !== 'break' && b.category !== 'personal');
     for (let d = 1; d <= today; d++) {
       const checks = state.dailyChecks[d] || {};
@@ -196,15 +205,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [state.dailyChecks]);
 
   const getDsaStats = useCallback(() => {
-    const solved = Object.values(state.dsaSolved).filter(Boolean).length;
-    return { solved, total: DSA_PROBLEMS.length };
-  }, [state.dsaSolved]);
+    let mastered = 0, inProgress = 0;
+    for (const p of DSA_PROBLEMS) {
+      const a = state.dsaAttempts[p.id];
+      if (a?.third) mastered++;
+      else if (a?.first || a?.second) inProgress++;
+    }
+    return { mastered, inProgress, notStarted: DSA_PROBLEMS.length - mastered - inProgress, total: DSA_PROBLEMS.length };
+  }, [state.dsaAttempts]);
 
-  const getWeekDsaStats = useCallback((week: 1 | 2 | 3 | 4) => {
+  const getWeekDsaStats = useCallback((week: 1 | 2 | 3 | 4 | 5) => {
     const weekProblems = DSA_PROBLEMS.filter(p => p.week === week);
-    const solved = weekProblems.filter(p => state.dsaSolved[p.id]).length;
-    return { solved, total: weekProblems.length };
-  }, [state.dsaSolved]);
+    let mastered = 0, inProgress = 0;
+    for (const p of weekProblems) {
+      const a = state.dsaAttempts[p.id];
+      if (a?.third) mastered++;
+      else if (a?.first || a?.second) inProgress++;
+    }
+    return { mastered, inProgress, total: weekProblems.length };
+  }, [state.dsaAttempts]);
 
   const getStreakCount = useCallback(() => {
     let streak = 0;
@@ -212,12 +231,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const taskBlocks = DAILY_BLOCKS.filter(b => b.category !== 'break' && b.category !== 'personal');
     for (let d = today; d >= 1; d--) {
       const checks = state.dailyChecks[d] || {};
-      const doneCount = taskBlocks.filter(b => checks[b.id]).length;
-      if (doneCount > 0) {
-        streak++;
-      } else {
-        break;
-      }
+      if (taskBlocks.some(b => checks[b.id])) streak++;
+      else break;
     }
     return streak;
   }, [state.dailyChecks]);
@@ -228,21 +243,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return state.jobApplications.filter(j => new Date(j.date) >= weekAgo).length;
   }, [state.jobApplications]);
 
-  const value: StoreContextValue = {
-    state,
-    toggleDailyBlock,
-    toggleDsaProblem,
-    addJobApplication,
-    updateJobStatus,
-    deleteJobApplication,
-    updateJournal,
-    getDayCompletion,
-    getOverallProgress,
-    getDsaStats,
-    getWeekDsaStats,
-    getStreakCount,
-    getWeeklyAppCount,
-  };
+  const getPlaylistStats = useCallback(() => {
+    const { PLAYLISTS } = require('./playlists');
+    let total = 0, watched = 0, practiced = 0;
+    for (const pl of PLAYLISTS) {
+      for (const v of pl.videos) {
+        total++;
+        const p = state.playlistProgress[v.id];
+        if (p?.watched) watched++;
+        if (p?.practiced) practiced++;
+      }
+    }
+    return { watched, practiced, total };
+  }, [state.playlistProgress]);
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={{
+      state, toggleDailyBlock, setDsaAttempt, getDsaAttemptState,
+      addJobApplication, updateJobStatus, updateJobNotes, deleteJobApplication,
+      updateJournal, togglePlaylistVideo, toggleFlashcard, setSelectedDay,
+      getDayCompletion, getOverallProgress, getDsaStats, getWeekDsaStats,
+      getStreakCount, getWeeklyAppCount, getPlaylistStats,
+    }}>
+      {children}
+    </StoreContext.Provider>
+  );
 }
