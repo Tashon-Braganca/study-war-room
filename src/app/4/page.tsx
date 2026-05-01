@@ -3,17 +3,19 @@
 import React, { useState } from 'react';
 import { useStore, getCurrentDay, formatDate, getDateForDay } from '@/store/StoreProvider';
 import type { JobApplication } from '@/store/StoreProvider';
-import { JOB_SITES, INTERVIEW_AMMO, getJobLogMessage } from '@/store/data';
+import { JOB_SITES, getJobLogMessage } from '@/store/data';
+import { FLASHCARDS } from '@/store/flashcards';
 import {
   Plus,
   Trash2,
   ExternalLink,
-  BookOpen,
   Briefcase,
   PenLine,
-  ChevronDown,
-  ChevronUp,
   Zap,
+  Eye,
+  RefreshCcw,
+  Download,
+  CheckCircle2,
 } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
@@ -34,6 +36,7 @@ export default function JobLogJournalPage() {
     deleteJobApplication,
     updateJournal,
     getWeeklyAppCount,
+    setFlashcardMastery,
   } = useStore();
 
   const today = getCurrentDay();
@@ -59,12 +62,26 @@ export default function JobLogJournalPage() {
       date: new Date().toISOString().split('T')[0],
       platform,
       status: formStatus,
+      notes: '', // Fixed missing property error
     });
     setCompany('');
     setRole('');
     setPlatform('LinkedIn');
     setFormStatus('Applied');
     setFormOpen(false);
+  };
+
+  const exportJobs = () => {
+    const lines = state.jobApplications.map(app => 
+      `- **${app.company}** (${app.role}) via ${app.platform} on ${app.date} | Status: *${app.status}*`
+    );
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `job-applications-export.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -120,7 +137,7 @@ export default function JobLogJournalPage() {
                 {totalApps}
               </p>
             </div>
-            <div className="flex-1">
+            <div className="flex-[2]">
               <p className="text-[12px] text-[var(--color-text-tertiary)] leading-relaxed">
                 {getJobLogMessage(totalApps)}
               </p>
@@ -128,15 +145,24 @@ export default function JobLogJournalPage() {
           </div>
 
           {/* Add button / form */}
-          {!formOpen ? (
-            <button
-              onClick={() => setFormOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[13px] font-medium text-[var(--color-accent)] bg-[var(--color-accent-surface)] border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/10 transition-colors mb-4"
-            >
-              <Plus size={14} />
-              Log Application
-            </button>
-          ) : (
+          <div className="flex items-center justify-between mb-4">
+            {!formOpen ? (
+              <button
+                onClick={() => setFormOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[13px] font-medium text-[var(--color-accent)] bg-[var(--color-accent-surface)] border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/10 transition-colors"
+              >
+                <Plus size={14} /> Log Application
+              </button>
+            ) : <div/>}
+
+            {totalApps > 0 && (
+              <button onClick={exportJobs} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
+                <Download size={13} /> Export MD
+              </button>
+            )}
+          </div>
+
+          {formOpen && (
             <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] p-4 mb-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
@@ -211,14 +237,14 @@ export default function JobLogJournalPage() {
                   {state.jobApplications.map(app => (
                     <div key={app.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_90px_90px_90px_40px] px-4 py-2.5 items-center gap-1 sm:gap-0 hover:bg-[var(--color-surface-2)] transition-colors">
                       <span className="text-[13px] font-medium text-[var(--color-text-primary)]">{app.company}</span>
-                      <span className="text-[13px] text-[var(--color-text-secondary)]">{app.role}</span>
+                      <span className="text-[13px] text-[var(--color-text-secondary)] truncate pr-2">{app.role}</span>
                       <span className="text-[12px] text-[var(--color-text-tertiary)]">{app.date}</span>
                       <span className="text-[12px] text-[var(--color-text-tertiary)]">{app.platform}</span>
                       <span>
                         <select
                           value={app.status}
                           onChange={(e) => updateJobStatus(app.id, e.target.value as JobApplication['status'])}
-                          className="text-[11px] font-medium px-1.5 py-0.5 rounded border-0 cursor-pointer"
+                          className="text-[11px] font-medium px-1.5 py-0.5 rounded border-0 cursor-pointer outline-none"
                           style={{
                             color: STATUS_COLORS[app.status]?.text,
                             backgroundColor: STATUS_COLORS[app.status]?.bg,
@@ -231,7 +257,7 @@ export default function JobLogJournalPage() {
                       </span>
                       <button
                         onClick={() => deleteJobApplication(app.id)}
-                        className="text-[var(--color-text-tertiary)] hover:text-[var(--color-red)] transition-colors p-1"
+                        className="text-[var(--color-text-tertiary)] hover:text-[var(--color-red)] transition-colors p-1 flex justify-end"
                         aria-label="Delete"
                       >
                         <Trash2 size={13} />
@@ -313,16 +339,24 @@ export default function JobLogJournalPage() {
         </div>
       )}
 
-      {/* ─── INTERVIEW AMMO ─── */}
+      {/* ─── INTERVIEW AMMO (Flashcards) ─── */}
       {activeSection === 'ammo' && (
         <div>
-          <p className="text-[13px] text-[var(--color-text-secondary)] mb-5 leading-relaxed">
-            Quick reference bullets on the most likely interview topics based on your resume. Review these before every mock interview.
-          </p>
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed max-w-xl">
+              Spaced repetition for your interview talking points. Read the question out loud, formulate your answer, and check against the reference.
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-[var(--color-text-tertiary)]"><CheckCircle2 size={12} className="inline mr-1 text-[var(--color-green)]"/>Mastered: {Object.values(state.flashcards).filter(v => v).length}/{FLASHCARDS.length}</span>
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {INTERVIEW_AMMO.map(topic => (
-              <AmmoCard key={topic.title} topic={topic} />
-            ))}
+            {FLASHCARDS.map(fc => {
+              const mastered = state.flashcards[fc.id] || false;
+              return (
+                <Flashcard key={fc.id} flashcard={fc} mastered={mastered} onToggleMastery={() => setFlashcardMastery(fc.id, !mastered)} />
+              );
+            })}
           </div>
         </div>
       )}
@@ -332,30 +366,42 @@ export default function JobLogJournalPage() {
 
 // ─── Sub-components ───
 
-function AmmoCard({ topic }: { topic: { title: string; bullets: string[] } }) {
-  const [open, setOpen] = useState(true);
+function Flashcard({ flashcard, mastered, onToggleMastery }: { flashcard: typeof FLASHCARDS[0], mastered: boolean, onToggleMastery: () => void }) {
+  const [revealed, setRevealed] = useState(false);
   return (
-    <div className="rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-surface-2)] transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Zap size={13} className="text-[var(--color-accent)]" />
-          <h3 className="text-[14px] font-semibold text-[var(--color-text-primary)]" style={{ fontFamily: 'var(--font-display)' }}>
-            {topic.title}
-          </h3>
+    <div className={`rounded-lg border transition-colors flex flex-col ${mastered ? 'bg-[var(--color-surface-2)] border-[var(--color-border-subtle)] opacity-75' : 'bg-[var(--color-surface-1)] border-[var(--color-border)]'}`}>
+      <div className="p-4 flex-1">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-accent)] px-2 py-0.5 rounded-full bg-[var(--color-accent-surface)]">
+            {flashcard.topic}
+          </span>
+          <button onClick={onToggleMastery} className={`p-1 rounded-full transition-colors ${mastered ? 'text-[var(--color-green)] hover:bg-[var(--color-green-surface)]' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-text-primary)]'}`} title={mastered ? 'Mark unmastered' : 'Mark mastered'}>
+            <CheckCircle2 size={14} />
+          </button>
         </div>
-        {open ? <ChevronUp size={14} className="text-[var(--color-text-tertiary)]" /> : <ChevronDown size={14} className="text-[var(--color-text-tertiary)]" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-3 space-y-1.5">
-          {topic.bullets.map((bullet, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="w-1 h-1 rounded-full bg-[var(--color-accent)] mt-1.5 flex-shrink-0" />
-              <p className="text-[12px] text-[var(--color-text-secondary)] leading-relaxed">{bullet}</p>
-            </div>
-          ))}
+        <p className="text-[14px] font-medium text-[var(--color-text-primary)] leading-snug mb-3" style={{ fontFamily: 'var(--font-display)' }}>
+          {flashcard.question}
+        </p>
+        
+        {revealed ? (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border-subtle)] animate-in fade-in slide-in-from-top-1">
+            <p className="text-[12px] text-[var(--color-text-secondary)] leading-relaxed">
+              {flashcard.answer}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-[var(--color-border-subtle)] flex justify-center">
+            <button onClick={() => setRevealed(true)} className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors">
+              <Eye size={13} /> Reveal Answer
+            </button>
+          </div>
+        )}
+      </div>
+      {revealed && (
+        <div className="px-4 py-2 bg-[var(--color-surface-2)] border-t border-[var(--color-border)] flex justify-end">
+          <button onClick={() => setRevealed(false)} className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors">
+            <RefreshCcw size={11} /> Hide
+          </button>
         </div>
       )}
     </div>
